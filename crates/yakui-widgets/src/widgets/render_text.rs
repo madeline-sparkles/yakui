@@ -1,3 +1,5 @@
+use core::mem;
+use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 
 use yakui_core::geometry::{Color, Constraints, Rect, Vec2};
@@ -74,15 +76,15 @@ impl RenderText {
     }
 
     #[track_caller]
-    pub fn show(self, text: &str, style: &TextStyle) -> Response<RenderTextResponse> {
+    pub fn show(self, text: Cow<'static, str>, style: TextStyle) -> Response<RenderTextResponse> {
         Self::show_with_scroll(self, text, style, None)
     }
 
     #[track_caller]
     pub fn show_with_scroll(
         self,
-        text: &str,
-        style: &TextStyle,
+        text: Cow<'static, str>,
+        style: TextStyle,
         scroll: Option<cosmic_text::Scroll>,
     ) -> Response<RenderTextResponse> {
         widget::<RenderTextWidget>((self, text, style, scroll))
@@ -112,19 +114,19 @@ pub struct RenderTextWidget {
 }
 
 impl Widget for RenderTextWidget {
-    type Props<'a> = (
+    type Props = (
         RenderText,
-        &'a str,
-        &'a TextStyle,
+        Cow<'static, str>,
+        TextStyle,
         Option<cosmic_text::Scroll>,
     );
     type Response = RenderTextResponse;
 
-    fn new() -> Self {
+    fn new(props: &Self::Props) -> Self {
         Self {
             buffer: RefCell::default(),
 
-            props: RenderText::new(),
+            props: props.0.clone(),
             text: String::default(),
             style: TextStyle::default(),
             text_changed: Cell::new(true),
@@ -143,8 +145,8 @@ impl Widget for RenderTextWidget {
         }
     }
 
-    fn update(&mut self, (props, text, style, scroll): Self::Props<'_>) -> Self::Response {
-        if text != self.text {
+    fn update(&mut self, (props, text, style, scroll): &mut Self::Props) -> Self::Response {
+        if text != &self.text {
             self.text = text.to_string();
             self.text_changed.set(true);
         }
@@ -154,12 +156,12 @@ impl Widget for RenderTextWidget {
             self.text_changed.set(true);
         }
 
-        if scroll != self.scroll {
+        if scroll != &self.scroll {
+            self.scroll = *scroll;
             self.scroll_changed.set(true)
         }
 
-        self.props = props;
-        self.scroll = scroll;
+        self.props = mem::take(props);
 
         Self::Response {
             measured_size: self.measured_size.get(),
@@ -169,7 +171,7 @@ impl Widget for RenderTextWidget {
         }
     }
 
-    fn layout(&self, ctx: LayoutContext<'_>, constraints: Constraints) -> Vec2 {
+    fn layout(&self, ctx: LayoutContext<'_, Self::Props>, constraints: Constraints) -> Vec2 {
         // if we're scrolling via cosmic-text, enable clipping
         if self.scroll.is_some() {
             ctx.layout.enable_clipping(ctx.dom);
@@ -286,7 +288,7 @@ impl Widget for RenderTextWidget {
         })
     }
 
-    fn paint(&self, ctx: PaintContext<'_>) {
+    fn paint(&self, ctx: PaintContext<'_, Self::Props>) {
         let fonts = ctx.dom.get_global_or_init(Fonts::default);
         let layout_rect = ctx.layout.get(ctx.dom.current()).unwrap().rect;
 

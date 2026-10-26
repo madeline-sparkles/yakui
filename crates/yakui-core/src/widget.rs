@@ -22,16 +22,41 @@ use crate::{Flow, WidgetId};
 pub trait Props: fmt::Debug {}
 impl<T> Props for T where T: fmt::Debug {}
 
+#[derive(Debug)]
+pub(crate) struct WidgetInstance<T: Widget> {
+    pub state: T,
+    pub props: T::Props,
+}
+
+impl<T: Widget> WidgetInstance<T> {
+    pub(crate) fn new(props: T::Props) -> Self {
+        Self {
+            state: T::new(&props),
+            props,
+        }
+    }
+}
+
 /// Information available to a widget during the layout phase.
 #[allow(missing_docs)]
-pub struct LayoutContext<'dom> {
+pub struct ErasedLayoutContext<'dom> {
     pub dom: &'dom Dom,
     pub input: &'dom InputState,
     pub layout: &'dom mut LayoutDom,
     pub paint: &'dom PaintDom,
 }
 
-impl LayoutContext<'_> {
+/// Information available to a widget during the layout phase, together with a reference to the widget props.
+#[allow(missing_docs)]
+pub struct LayoutContext<'dom, P> {
+    pub dom: &'dom Dom,
+    pub input: &'dom InputState,
+    pub layout: &'dom mut LayoutDom,
+    pub paint: &'dom PaintDom,
+    pub props: &'dom P,
+}
+
+impl<'dom, P> LayoutContext<'dom, P> {
     /// Calculate the layout for the given widget with the given constraints.
     ///
     /// This method currently must only be called once per widget per layout
@@ -70,13 +95,22 @@ impl LayoutContext<'_> {
 
 /// Information available to a widget during the paint phase.
 #[allow(missing_docs)]
-pub struct PaintContext<'dom> {
+pub struct ErasedPaintContext<'dom> {
     pub dom: &'dom Dom,
     pub layout: &'dom LayoutDom,
     pub paint: &'dom mut PaintDom,
 }
 
-impl PaintContext<'_> {
+/// Information available to a widget during the paint phase.
+#[allow(missing_docs)]
+pub struct PaintContext<'dom, P> {
+    pub dom: &'dom Dom,
+    pub layout: &'dom LayoutDom,
+    pub paint: &'dom mut PaintDom,
+    pub props: &'dom P,
+}
+
+impl<P> PaintContext<'_, P> {
     /// Paint the given widget.
     pub fn paint(&mut self, widget: WidgetId) {
         self.paint.paint(self.dom, self.layout, widget);
@@ -85,10 +119,19 @@ impl PaintContext<'_> {
 
 /// Information available to a widget when it has received an event.
 #[allow(missing_docs)]
-pub struct EventContext<'dom> {
+pub struct ErasedEventContext<'dom> {
     pub dom: &'dom Dom,
     pub layout: &'dom LayoutDom,
     pub input: &'dom InputState,
+}
+
+/// Information available to a widget when it has received an event.
+#[allow(missing_docs)]
+pub struct EventContext<'dom, P> {
+    pub dom: &'dom Dom,
+    pub layout: &'dom LayoutDom,
+    pub input: &'dom InputState,
+    pub props: &'dom mut P,
 }
 
 /// Information available to a widget when it is being queried for navigation.
@@ -207,7 +250,7 @@ bitflags::bitflags! {
 pub trait Widget: 'static + fmt::Debug {
     /// The props that this widget needs to be created or updated. Props define
     /// all of the values that a widget's user can specify every render.
-    type Props<'a>: Props;
+    type Props: Props;
 
     /// The type that the widget will return to the user when it is created or
     /// updated. This type should contain information like whether the widget
@@ -215,10 +258,10 @@ pub trait Widget: 'static + fmt::Debug {
     type Response;
 
     /// Create the widget.
-    fn new() -> Self;
+    fn new(props: &Self::Props) -> Self;
 
     /// Update the widget with new props.
-    fn update(&mut self, props: Self::Props<'_>) -> Self::Response;
+    fn update(&mut self, props: &mut Self::Props) -> Self::Response;
 
     /// Returns whether this widget should grow to fill a flexible layout, and
     /// if so, what weight should be applied to it if other widgets also want to
@@ -226,14 +269,14 @@ pub trait Widget: 'static + fmt::Debug {
     ///
     /// A value of `0` indicates that this widget should not grow, while `1`
     /// means that it should stretch to take the available space.
-    fn flex(&self) -> (u32, FlexFit) {
+    fn flex(&self, _props: &Self::Props) -> (u32, FlexFit) {
         (0, FlexFit::Loose)
     }
 
     /// Returns the behavior that this widget should have when part of a layout.
     ///
     /// By default, widgets participate in layout using [`Flow::Inline`].
-    fn flow(&self) -> Flow {
+    fn flow(&self, _props: &Self::Props) -> Flow {
         Flow::Inline
     }
 
@@ -243,7 +286,7 @@ pub trait Widget: 'static + fmt::Debug {
     ///
     /// The default implementation will lay out all of this widget's children on
     /// top of each other, and fit the widget tightly around them.
-    fn layout(&self, ctx: LayoutContext<'_>, constraints: Constraints) -> Vec2 {
+    fn layout(&self, ctx: LayoutContext<'_, Self::Props>, constraints: Constraints) -> Vec2 {
         self.default_layout(ctx, constraints)
     }
 
@@ -251,7 +294,11 @@ pub trait Widget: 'static + fmt::Debug {
     /// for a widget. This method is intended to be called from custom widget's
     /// `layout` methods.
     #[inline]
-    fn default_layout(&self, mut ctx: LayoutContext<'_>, constraints: Constraints) -> Vec2 {
+    fn default_layout(
+        &self,
+        mut ctx: LayoutContext<'_, Self::Props>,
+        constraints: Constraints,
+    ) -> Vec2 {
         let node = ctx.dom.get_current();
         let mut size = Vec2::ZERO;
         for &child in &node.children {
@@ -265,7 +312,7 @@ pub trait Widget: 'static + fmt::Debug {
     /// Paint the widget based on its current state.
     ///
     /// The default implementation will paint all of the widget's children.
-    fn paint(&self, ctx: PaintContext<'_>) {
+    fn paint(&self, ctx: PaintContext<'_, Self::Props>) {
         self.default_paint(ctx);
     }
 
@@ -273,7 +320,7 @@ pub trait Widget: 'static + fmt::Debug {
     /// for a widget. This method is intended to be called from custom widget's
     /// `paint` methods.
     #[inline]
-    fn default_paint(&self, mut ctx: PaintContext<'_>) {
+    fn default_paint(&self, mut ctx: PaintContext<'_, Self::Props>) {
         let node = ctx.dom.get_current();
         for &child in &node.children {
             ctx.paint(child);
@@ -283,7 +330,7 @@ pub trait Widget: 'static + fmt::Debug {
     /// Tells which events the widget is interested in receiving.
     ///
     /// The default implementation will register interest in no events.
-    fn event_interest(&self) -> EventInterest {
+    fn event_interest(&self, _props: &Self::Props) -> EventInterest {
         EventInterest::empty()
     }
 
@@ -291,25 +338,35 @@ pub trait Widget: 'static + fmt::Debug {
     ///
     /// The default implementation will bubble all events.
     #[allow(unused)]
-    fn event(&mut self, ctx: EventContext<'_>, event: &WidgetEvent) -> EventResponse {
+    fn event(&mut self, ctx: EventContext<'_, Self::Props>, event: &WidgetEvent) -> EventResponse {
         EventResponse::Bubble
     }
 
     /// Returns the focus policy for this widget.
     ///
     /// The default implementation implies no focus behavior.
-    fn focus_policy(&self) -> FocusPolicy {
+    fn focus_policy(&self, _props: &Self::Props) -> FocusPolicy {
         FocusPolicy::empty()
     }
 
     /// Tell which widget should be navigated to if the user navigates in a
     /// given direction.
-    fn navigate(&self, ctx: NavigateContext<'_>, dir: NavDirection) -> Option<WidgetId> {
-        self.default_navigate(ctx, dir)
+    fn navigate(
+        &self,
+        props: &Self::Props,
+        ctx: NavigateContext<'_>,
+        dir: NavDirection,
+    ) -> Option<WidgetId> {
+        self.default_navigate(props, ctx, dir)
     }
 
     /// Perform the default navigation based on focus and position.
-    fn default_navigate(&self, ctx: NavigateContext<'_>, dir: NavDirection) -> Option<WidgetId> {
+    fn default_navigate(
+        &self,
+        props: &Self::Props,
+        ctx: NavigateContext<'_>,
+        dir: NavDirection,
+    ) -> Option<WidgetId> {
         let node_id = ctx.dom.current();
         let node = ctx.dom.get_current();
 
@@ -370,7 +427,7 @@ pub trait Widget: 'static + fmt::Debug {
             // direction that's focusable.
 
             if focus != Some(node_id) {
-                let policy = self.focus_policy();
+                let policy = self.focus_policy(props);
 
                 let can_focus = match dir {
                     NavDirection::Next | NavDirection::Previous => {
@@ -428,7 +485,7 @@ pub trait Widget: 'static + fmt::Debug {
 /// A type-erased version of [`Widget`].
 pub trait ErasedWidget: Any + fmt::Debug {
     /// See [`Widget::layout`].
-    fn layout(&self, ctx: LayoutContext<'_>, constraints: Constraints) -> Vec2;
+    fn layout(&self, ctx: ErasedLayoutContext<'_>, constraints: Constraints) -> Vec2;
 
     /// See [`Widget::flex`].
     fn flex(&self) -> (u32, FlexFit);
@@ -437,13 +494,13 @@ pub trait ErasedWidget: Any + fmt::Debug {
     fn flow(&self) -> Flow;
 
     /// See [`Widget::paint`].
-    fn paint(&self, ctx: PaintContext<'_>);
+    fn paint(&self, ctx: ErasedPaintContext<'_>);
 
     /// See [`Widget::event_interest`].
     fn event_interest(&self) -> EventInterest;
 
     /// See [`Widget::event`].
-    fn event(&mut self, ctx: EventContext<'_>, event: &WidgetEvent) -> EventResponse;
+    fn event(&mut self, ctx: ErasedEventContext<'_>, event: &WidgetEvent) -> EventResponse;
 
     /// Returns the type name of the widget, usable only for debugging.
     fn type_name(&self) -> &'static str;
@@ -455,34 +512,61 @@ pub trait ErasedWidget: Any + fmt::Debug {
     fn navigate(&self, ctx: NavigateContext<'_>, dir: NavDirection) -> Option<WidgetId>;
 }
 
-impl<T> ErasedWidget for T
+impl<T> ErasedWidget for WidgetInstance<T>
 where
     T: Widget,
 {
-    fn layout(&self, ctx: LayoutContext<'_>, constraints: Constraints) -> Vec2 {
-        <T as Widget>::layout(self, ctx, constraints)
+    fn layout(&self, ctx: ErasedLayoutContext<'_>, constraints: Constraints) -> Vec2 {
+        <T as Widget>::layout(
+            &self.state,
+            LayoutContext {
+                dom: ctx.dom,
+                input: ctx.input,
+                layout: ctx.layout,
+                paint: ctx.paint,
+                props: &self.props,
+            },
+            constraints,
+        )
     }
 
     fn flex(&self) -> (u32, FlexFit) {
-        <T as Widget>::flex(self)
+        <T as Widget>::flex(&self.state, &self.props)
     }
 
     fn flow(&self) -> Flow {
-        <T as Widget>::flow(self)
+        <T as Widget>::flow(&self.state, &self.props)
     }
 
-    fn paint(&self, ctx: PaintContext<'_>) {
-        <T as Widget>::paint(self, ctx)
+    fn paint(&self, ctx: ErasedPaintContext<'_>) {
+        <T as Widget>::paint(
+            &self.state,
+            PaintContext {
+                dom: ctx.dom,
+                layout: ctx.layout,
+                paint: ctx.paint,
+                props: &self.props,
+            },
+        )
     }
 
     fn event_interest(&self) -> EventInterest {
-        <T as Widget>::event_interest(self)
+        <T as Widget>::event_interest(&self.state, &self.props)
     }
 
-    fn event(&mut self, ctx: EventContext<'_>, event: &WidgetEvent) -> EventResponse {
+    fn event(&mut self, ctx: ErasedEventContext<'_>, event: &WidgetEvent) -> EventResponse {
         log::debug!("Event on {}: {event:?}", type_name::<T>());
 
-        <T as Widget>::event(self, ctx, event)
+        <T as Widget>::event(
+            &mut self.state,
+            EventContext {
+                dom: ctx.dom,
+                layout: ctx.layout,
+                input: ctx.input,
+                props: &mut self.props,
+            },
+            event,
+        )
     }
 
     fn type_name(&self) -> &'static str {
@@ -490,11 +574,11 @@ where
     }
 
     fn focus_policy(&self) -> FocusPolicy {
-        <T as Widget>::focus_policy(self)
+        <T as Widget>::focus_policy(&self.state, &self.props)
     }
 
     fn navigate(&self, ctx: NavigateContext<'_>, dir: NavDirection) -> Option<WidgetId> {
-        <T as Widget>::navigate(self, ctx, dir)
+        <T as Widget>::navigate(&self.state, &self.props, ctx, dir)
     }
 }
 

@@ -80,32 +80,28 @@ impl Pad {
 }
 
 #[derive(Debug)]
-pub struct PadWidget {
-    props: Pad,
-}
+pub struct PadWidget;
 
 pub type PadResponse = ();
 
 impl Widget for PadWidget {
-    type Props<'a> = Pad;
+    type Props = Pad;
     type Response = PadResponse;
 
-    fn new() -> Self {
-        Self { props: Pad::ZERO }
+    fn new(_props: &Self::Props) -> Self {
+        Self
     }
 
-    fn update(&mut self, props: Self::Props<'_>) -> Self::Response {
-        self.props = props;
-    }
+    fn update(&mut self, _props: &mut Self::Props) -> Self::Response {}
 
-    fn layout(&self, mut ctx: LayoutContext<'_>, input: Constraints) -> Vec2 {
+    fn layout(&self, mut ctx: LayoutContext<'_, Self::Props>, input: Constraints) -> Vec2 {
         let node = ctx.dom.get_current();
 
         let total_padding = Vec2::new(
-            self.props.left + self.props.right,
-            self.props.top + self.props.bottom,
+            ctx.props.left + ctx.props.right,
+            ctx.props.top + ctx.props.bottom,
         );
-        let offset = Vec2::new(self.props.left, self.props.top);
+        let offset = Vec2::new(ctx.props.left, ctx.props.top);
 
         let child_constraints = Constraints {
             min: (input.min - total_padding).max(Vec2::ZERO),

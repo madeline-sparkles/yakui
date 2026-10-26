@@ -9,7 +9,7 @@ use crate::util;
 
 #[must_use = "yakui widgets do nothing if you don't `show` them"]
 pub struct State<T> {
-    default: Box<dyn FnOnce() -> T>,
+    default: Option<Box<dyn FnOnce() -> T>>,
 }
 
 impl<T: 'static> State<T> {
@@ -18,7 +18,7 @@ impl<T: 'static> State<T> {
         F: FnOnce() -> T + 'static,
     {
         Self {
-            default: Box::new(default),
+            default: Some(Box::new(default)),
         }
     }
 
@@ -71,17 +71,17 @@ pub struct StateWidget<T> {
 }
 
 impl<T: 'static> Widget for StateWidget<T> {
-    type Props<'a> = State<T>;
+    type Props = State<T>;
     type Response = StateResponse<T>;
 
-    fn new() -> Self {
+    fn new(_props: &Self::Props) -> Self {
         Self { value: None }
     }
 
-    fn update(&mut self, props: Self::Props<'_>) -> Self::Response {
+    fn update(&mut self, props: &mut Self::Props) -> Self::Response {
         let value = self
             .value
-            .get_or_insert_with(|| Rc::new(RefCell::new((props.default)())))
+            .get_or_insert_with(|| Rc::new(RefCell::new(props.default.take().unwrap()())))
             .clone();
 
         StateResponse { value }

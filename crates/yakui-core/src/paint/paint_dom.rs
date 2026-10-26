@@ -11,7 +11,7 @@ use crate::geometry::Rect;
 use crate::id::{ManagedTextureId, WidgetId};
 use crate::layout::LayoutDom;
 use crate::paint::{PaintCall, Pipeline};
-use crate::widget::PaintContext;
+use crate::widget::ErasedPaintContext;
 
 use super::layers::PaintLayers;
 use super::primitives::{PaintMesh, Vertex};
@@ -171,7 +171,7 @@ impl PaintDom {
 
         dom.enter(id);
 
-        let context = PaintContext {
+        let context = ErasedPaintContext {
             dom,
             layout,
             paint: self,

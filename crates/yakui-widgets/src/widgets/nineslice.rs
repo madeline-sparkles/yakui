@@ -55,24 +55,19 @@ impl NineSlice {
 }
 
 #[derive(Debug)]
-pub struct NineSliceWidget {
-    props: Option<NineSlice>,
-}
+pub struct NineSliceWidget;
 
 impl Widget for NineSliceWidget {
-    type Props<'a> = NineSlice;
+    type Props = NineSlice;
     type Response = ();
 
-    fn new() -> Self {
-        Self { props: None }
+    fn new(_props: &Self::Props) -> Self {
+        Self
     }
 
-    fn update(&mut self, props: Self::Props<'_>) -> Self::Response {
-        self.props = Some(props);
-    }
+    fn update(&mut self, _props: &mut Self::Props) -> Self::Response {}
 
-    fn paint(&self, mut ctx: PaintContext<'_>) {
-        let props = self.props.as_ref().unwrap();
+    fn paint(&self, mut ctx: PaintContext<'_, Self::Props>) {
         let NineSlice {
             texture,
             margins:
@@ -84,7 +79,7 @@ impl Widget for NineSliceWidget {
                     ..
                 },
             scale,
-        } = *props;
+        } = *ctx.props;
 
         let rect = ctx.layout.get(ctx.dom.current()).unwrap().rect;
 
@@ -129,7 +124,7 @@ impl Widget for NineSliceWidget {
 
         let mut mesh = PaintMesh::new(vertices, indices);
         mesh.texture = Some((
-            props.texture.into(),
+            ctx.props.texture.into(),
             Rect::from_pos_size(Vec2::ZERO, texture_size),
         ));
         drop(textures);

@@ -51,7 +51,6 @@ impl ScrollDirection {
 
 #[derive(Debug)]
 pub struct ScrollableWidget {
-    props: Scrollable,
     scroll_position: Cell<Vec2>,
     canvas_size: Cell<Vec2>,
     last_focus: Cell<Option<WidgetId>>,
@@ -60,29 +59,26 @@ pub struct ScrollableWidget {
 pub type ScrollableResponse = ();
 
 impl Widget for ScrollableWidget {
-    type Props<'a> = Scrollable;
+    type Props = Scrollable;
     type Response = ScrollableResponse;
 
-    fn new() -> Self {
+    fn new(_props: &Self::Props) -> Self {
         Self {
-            props: Scrollable::none(),
             scroll_position: Cell::new(Vec2::ZERO),
             canvas_size: Cell::new(Vec2::ZERO),
             last_focus: Cell::new(None),
         }
     }
 
-    fn update(&mut self, props: Self::Props<'_>) -> Self::Response {
-        self.props = props;
-    }
+    fn update(&mut self, _props: &mut Self::Props) -> Self::Response {}
 
-    fn layout(&self, mut ctx: LayoutContext<'_>, constraints: Constraints) -> Vec2 {
+    fn layout(&self, mut ctx: LayoutContext<'_, Self::Props>, constraints: Constraints) -> Vec2 {
         ctx.layout.enable_clipping(ctx.dom);
 
         let node = ctx.dom.get_current();
         let mut canvas_size = Vec2::ZERO;
 
-        let child_constraints = match self.props.direction {
+        let child_constraints = match ctx.props.direction {
             None => constraints,
             Some(ScrollDirection::Y) => Constraints {
                 min: Vec2::new(constraints.min.x, 0.0),
@@ -106,7 +102,7 @@ impl Widget for ScrollableWidget {
             .min(max_scroll_position)
             .max(Vec2::ZERO);
 
-        match self.props.direction {
+        match ctx.props.direction {
             None => scroll_position = Vec2::ZERO,
             Some(ScrollDirection::Y) => scroll_position.x = 0.0,
         }
@@ -120,7 +116,7 @@ impl Widget for ScrollableWidget {
         size
     }
 
-    fn paint(&self, mut ctx: PaintContext<'_>) {
+    fn paint(&self, mut ctx: PaintContext<'_, Self::Props>) {
         let node = ctx.dom.get_current();
 
         for &child in &node.children {
@@ -128,11 +124,11 @@ impl Widget for ScrollableWidget {
         }
     }
 
-    fn event_interest(&self) -> EventInterest {
+    fn event_interest(&self, _props: &Self::Props) -> EventInterest {
         EventInterest::MOUSE_INSIDE
     }
 
-    fn event(&mut self, _ctx: EventContext<'_>, event: &WidgetEvent) -> EventResponse {
+    fn event(&mut self, _ctx: EventContext<'_, Self::Props>, event: &WidgetEvent) -> EventResponse {
         match *event {
             WidgetEvent::MouseScroll { delta, .. } => {
                 let pos = self.scroll_position.get();
@@ -145,8 +141,8 @@ impl Widget for ScrollableWidget {
 }
 
 impl ScrollableWidget {
-    fn scroll_to_focus(&self, ctx: &LayoutContext<'_>, viewport_size: Vec2) {
-        let Some(dir) = self.props.direction else {
+    fn scroll_to_focus(&self, ctx: &LayoutContext<'_, Scrollable>, viewport_size: Vec2) {
+        let Some(dir) = ctx.props.direction else {
             return;
         };
 

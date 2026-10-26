@@ -27,36 +27,30 @@ impl Spacer {
 }
 
 #[derive(Debug)]
-pub struct SpacerWidget {
-    props: Spacer,
-}
+pub struct SpacerWidget;
 
 pub type SpacerResponse = ();
 
 impl Widget for SpacerWidget {
-    type Props<'a> = Spacer;
+    type Props = Spacer;
     type Response = SpacerResponse;
 
-    fn new() -> Self {
-        Self {
-            props: Spacer::new(1),
-        }
+    fn new(_props: &Self::Props) -> Self {
+        Self
     }
 
-    fn update(&mut self, props: Self::Props<'_>) -> Self::Response {
-        self.props = props;
+    fn update(&mut self, _props: &mut Self::Props) -> Self::Response {}
+
+    fn flex(&self, props: &Self::Props) -> (u32, FlexFit) {
+        (props.flex, FlexFit::Tight)
     }
 
-    fn flex(&self) -> (u32, FlexFit) {
-        (self.props.flex, FlexFit::Tight)
-    }
-
-    fn layout(&self, _ctx: LayoutContext<'_>, constraints: Constraints) -> Vec2 {
+    fn layout(&self, _ctx: LayoutContext<'_, Self::Props>, constraints: Constraints) -> Vec2 {
         // Flutter also implements it like this
         constraints.min
     }
 
-    fn paint(&self, _: PaintContext<'_>) {
+    fn paint(&self, _: PaintContext<'_, Self::Props>) {
         // No children
     }
 }

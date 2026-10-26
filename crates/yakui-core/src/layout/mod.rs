@@ -11,7 +11,7 @@ use crate::geometry::{Constraints, Rect};
 use crate::id::WidgetId;
 use crate::input::{InputState, MouseInterest};
 use crate::paint::PaintDom;
-use crate::widget::LayoutContext;
+use crate::widget::ErasedLayoutContext;
 
 /// Contains information on how each widget in the DOM is laid out and what
 /// events they're interested in.
@@ -144,7 +144,7 @@ impl LayoutDom {
         dom.enter(id);
         let dom_node = dom.get(id).unwrap();
 
-        let context = LayoutContext {
+        let context = ErasedLayoutContext {
             dom,
             input,
             layout: self,

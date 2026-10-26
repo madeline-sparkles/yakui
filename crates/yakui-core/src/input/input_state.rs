@@ -10,7 +10,7 @@ use crate::geometry::Rect;
 use crate::id::WidgetId;
 use crate::layout::LayoutDom;
 use crate::navigation::{navigate, NavDirection};
-use crate::widget::{EventContext, FocusPolicy};
+use crate::widget::{ErasedEventContext, FocusPolicy};
 
 use super::mouse::MouseButton;
 use super::{KeyCode, Modifiers};
@@ -656,7 +656,7 @@ impl InputState {
         node: &mut DomNode,
         event: &WidgetEvent,
     ) -> EventResponse {
-        let context = EventContext {
+        let context = ErasedEventContext {
             dom,
             layout,
             input: self,

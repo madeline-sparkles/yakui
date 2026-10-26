@@ -56,27 +56,21 @@ impl Align {
 }
 
 #[derive(Debug)]
-pub struct AlignWidget {
-    props: Align,
-}
+pub struct AlignWidget;
 
 pub type AlignResponse = ();
 
 impl Widget for AlignWidget {
-    type Props<'a> = Align;
+    type Props = Align;
     type Response = AlignResponse;
 
-    fn new() -> Self {
-        Self {
-            props: Align::center(),
-        }
+    fn new(_props: &Self::Props) -> Self {
+        Self
     }
 
-    fn update(&mut self, props: Self::Props<'_>) -> Self::Response {
-        self.props = props;
-    }
+    fn update(&mut self, _props: &mut Self::Props) -> Self::Response {}
 
-    fn layout(&self, mut ctx: LayoutContext<'_>, input: Constraints) -> Vec2 {
+    fn layout(&self, mut ctx: LayoutContext<'_, Self::Props>, input: Constraints) -> Vec2 {
         let node = ctx.dom.get_current();
 
         // Align allows its children to be smaller than the minimum size
@@ -90,7 +84,7 @@ impl Widget for AlignWidget {
         } else {
             Vec2::ZERO
         };
-        let align = self.props.alignment.as_vec2();
+        let align = ctx.props.alignment.as_vec2();
 
         for &child in &node.children {
             let child_size = ctx.calculate_layout(child, constraints);
@@ -102,7 +96,7 @@ impl Widget for AlignWidget {
         self_size
     }
 
-    fn paint(&self, mut ctx: PaintContext<'_>) {
+    fn paint(&self, mut ctx: PaintContext<'_, Self::Props>) {
         let node = ctx.dom.get_current();
         for &child in &node.children {
             ctx.paint(child);

@@ -210,7 +210,7 @@ pub fn opaque(children: impl FnOnce()) -> Response<OpaqueResponse> {
 
 /// See [Canvas].
 #[track_caller]
-pub fn canvas(paint: impl Fn(&mut PaintContext<'_>) + 'static) -> Response<CanvasResponse> {
+pub fn canvas(paint: impl Fn(&mut PaintContext<'_, Canvas>) + 'static) -> Response<CanvasResponse> {
     Canvas::new(paint).show()
 }
 

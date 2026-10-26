@@ -12,6 +12,7 @@ use lyon_tessellation::path::Path;
 use lyon_tessellation::{
     FillOptions, FillTessellator, LineJoin, StrokeOptions, StrokeTessellator, VertexBuffers,
 };
+use yakui::widgets::Canvas;
 use yakui::{Color, Vec2};
 use yakui_core::paint::{PaintMesh, Vertex};
 use yakui_core::widget::PaintContext;
@@ -42,7 +43,12 @@ pub fn run() {
     });
 }
 
-fn draw_segment(ctx: &mut PaintContext<'_>, center: Vec2, start_angle: f32, end_angle: f32) {
+fn draw_segment(
+    ctx: &mut PaintContext<'_, Canvas>,
+    center: Vec2,
+    start_angle: f32,
+    end_angle: f32,
+) {
     let inner_radius = 100.0;
     let outer_radius = 150.0;
     let angle_samples = 16;

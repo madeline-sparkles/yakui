@@ -96,8 +96,14 @@ impl TextBox {
     }
 
     #[track_caller]
-    pub fn show<'a, S: Into<&'a str>>(self, text: S) -> Response<TextBoxResponse> {
-        widget::<TextBoxWidget>((self, text.into()))
+    pub fn show<S: ToString>(self, text: S) -> Response<TextBoxResponse> {
+        widget::<TextBoxWidget>((self, text.to_string()))
+    }
+}
+
+impl Default for TextBox {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -153,13 +159,13 @@ pub struct TextBoxResponse {
 }
 
 impl Widget for TextBoxWidget {
-    type Props<'a> = (TextBox, &'a str);
+    type Props = (TextBox, String);
     type Response = TextBoxResponse;
 
-    fn new() -> Self {
+    fn new((props, text): &Self::Props) -> Self {
         Self {
-            text: String::new(),
-            props: TextBox::new(),
+            text: text.clone(),
+            props: props.clone(),
 
             active: false,
             activated: false,
@@ -181,14 +187,14 @@ impl Widget for TextBoxWidget {
         }
     }
 
-    fn flex(&self) -> (u32, FlexFit) {
+    fn flex(&self, _props: &Self::Props) -> (u32, FlexFit) {
         (1, FlexFit::Loose)
     }
 
-    fn update(&mut self, (props, text): Self::Props<'_>) -> Self::Response {
+    fn update(&mut self, (props, text): &mut Self::Props) -> Self::Response {
         // We need to initialize text attributes later when text or style is default
         let text_changed_by_caller = self.cosmic_editor.borrow().is_none()
-            || text != self.text
+            || text != &self.text
             || props.style != self.props.style;
         if text_changed_by_caller {
             self.text_changed_by_cosmic.set(false);
@@ -197,9 +203,9 @@ impl Widget for TextBoxWidget {
         self.text_changed
             .set(text_changed_by_caller || text_changed_by_cosmic);
 
-        self.props = props;
-        if text != self.text {
-            self.text = text.to_string();
+        self.props = mem::take(props);
+        if text != &self.text {
+            self.text = mem::take(text);
         }
 
         let fonts = context::dom().get_global_or_init(Fonts::default);
@@ -318,7 +324,7 @@ impl Widget for TextBoxWidget {
             }
 
             let response = render_text
-                .show_with_scroll(text, style, new_scroll)
+                .show_with_scroll(Cow::Owned(text.to_string()), style.clone(), new_scroll)
                 .into_inner();
 
             if self.render_text_response != response {
@@ -339,7 +345,7 @@ impl Widget for TextBoxWidget {
         }
     }
 
-    fn layout(&self, ctx: LayoutContext<'_>, constraints: Constraints) -> Vec2 {
+    fn layout(&self, ctx: LayoutContext<'_, Self::Props>, constraints: Constraints) -> Vec2 {
         if self.active {
             ctx.input.enable_text_input();
         }
@@ -379,7 +385,7 @@ impl Widget for TextBoxWidget {
         self.default_layout(ctx, constraints)
     }
 
-    fn paint(&self, ctx: PaintContext<'_>) {
+    fn paint(&self, ctx: PaintContext<'_, Self::Props>) {
         let layout_rect = ctx.layout.get(ctx.dom.current()).unwrap().rect;
 
         if let Some(fill_color) = self.props.fill {
@@ -395,18 +401,18 @@ impl Widget for TextBoxWidget {
         self.default_paint(ctx);
     }
 
-    fn focus_policy(&self) -> FocusPolicy {
+    fn focus_policy(&self, _: &Self::Props) -> FocusPolicy {
         FocusPolicy::SEQUENTIAL | FocusPolicy::DIRECTIONAL | FocusPolicy::POINTER
     }
 
-    fn event_interest(&self) -> EventInterest {
+    fn event_interest(&self, _: &Self::Props) -> EventInterest {
         EventInterest::MOUSE_INSIDE
             | EventInterest::MOUSE_OUTSIDE
             | EventInterest::MOUSE_MOVE
             | EventInterest::FOCUSED_KEYBOARD
     }
 
-    fn event(&mut self, ctx: EventContext<'_>, event: &WidgetEvent) -> EventResponse {
+    fn event(&mut self, ctx: EventContext<'_, Self::Props>, event: &WidgetEvent) -> EventResponse {
         let fonts = ctx.dom.get_global_or_init(Fonts::default);
         let mut editor_ref = self.cosmic_editor.borrow_mut();
         let editor = editor_ref.as_mut().unwrap();
